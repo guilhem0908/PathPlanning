@@ -10,7 +10,7 @@ y_orange = []
 x_start = []
 y_start = []
 
-with open("small_track.csv", newline="") as f:
+with open("hairpins_increasing_difficulty.csv", newline="") as f:
     reader = csv.DictReader(f)
     for row in reader:
         x = float(row["x"])
@@ -39,15 +39,17 @@ if x_yellow:
 if x_orange:
     plt.scatter(x_orange, y_orange, label="big_orange")
 if x_start:
-    # marqueur différent pour bien voir le départ
-    plt.scatter(x_start, y_start, marker="*", s=150, label="car_start")
+    plt.scatter(x_start, y_start, label="car_start")
 
 plt.xlabel("x")
 plt.ylabel("y")
-plt.title("small_track")
+plt.title("hairpins_increasing_difficulty")
 plt.axis("equal")
 plt.grid(True)
 plt.legend()
 
-plt.savefig("small_track.png", dpi=300, bbox_inches="tight")
+# Sauvegarde en PNG dans le projet
+plt.savefig("hairpins_increasing_difficulty.png", dpi=300, bbox_inches="tight")
+
+# Optionnel : afficher aussi
 plt.show()
