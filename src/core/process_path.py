@@ -1,198 +1,121 @@
 import numpy as np
+from scipy.interpolate import splprep, splev
 import math
-import random
-from scipy import interpolate
-
-# Paramètres RRT*
-MAX_ITER = 3000
-EXPAND_DIS = 2.0
-PATH_RESOLUTION = 0.5
-CONNECT_CIRCLE_DIST = 50.0
-SAFE_RADIUS = 0.8  # Marge de sécurité autour des plots (rayons plot + voiture)
 
 
-class RRTStar:
-    """ Algorithme RRT* pour la planification de trajectoire """
+class PathProcessor:
+    def __init__(self):
+        pass
 
-    class Node:
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
-            self.path_x = []
-            self.path_y = []
-            self.parent = None
-            self.cost = 0.0
+    def compute_track_centerline(self, yellow_cones, blue_cones, start_pos):
+        """
+        Calculates the centerline by taking the midpoint between each yellow cone
+        and its nearest blue neighbor, then sorts them to form a coherent loop.
+        """
+        if not yellow_cones or not blue_cones:
+            print("Error: Not enough cones to compute centerline.")
+            return []
 
-    def __init__(self, start, goal, obstacle_list, rand_area,
-                 expand_dis=2.0, path_resolution=0.5, goal_sample_rate=10, max_iter=500):
-        self.start = self.Node(start[0], start[1])
-        self.end = self.Node(goal[0], goal[1])
-        self.min_rand = rand_area[0]
-        self.max_rand = rand_area[1]
-        self.expand_dis = expand_dis
-        self.path_resolution = path_resolution
-        self.goal_sample_rate = goal_sample_rate
-        self.max_iter = max_iter
-        self.obstacle_list = obstacle_list
-        self.node_list = []
+        yellow = np.array(yellow_cones)
+        blue = np.array(blue_cones)
 
-    def plan(self):
-        self.node_list = [self.start]
-        for i in range(self.max_iter):
-            if i % 500 == 0:
-                print(f"RRT* Iteration: {i}/{self.max_iter}")
+        # 1. Find midpoints (Yellow <-> Nearest Blue)
+        midpoints = []
+        for y_pt in yellow:
+            # Euclidean distance to all blue cones
+            dists = np.linalg.norm(blue - y_pt, axis=1)
+            nearest_blue_idx = np.argmin(dists)
+            b_pt = blue[nearest_blue_idx]
 
-            rnd_node = self.get_random_node()
-            nearest_ind = self.get_nearest_node_index(self.node_list, rnd_node)
-            nearest_node = self.node_list[nearest_ind]
+            # Calculate midpoint
+            mid = (y_pt + b_pt) / 2
+            midpoints.append(tuple(mid))
 
-            new_node = self.steer(nearest_node, rnd_node, self.expand_dis)
+        midpoints = np.array(midpoints)
+        if len(midpoints) == 0:
+            return []
 
-            if self.check_collision(new_node, self.obstacle_list):
-                near_inds = self.find_near_nodes(new_node)
-                new_node = self.choose_parent(new_node, near_inds)
-                if new_node:
-                    self.node_list.append(new_node)
-                    self.rewire(new_node, near_inds)
+        # 2. Sort points (Greedy Nearest Neighbor) to form a path
+        # Start with the point closest to the car's start position
+        start_arr = np.array(start_pos)
+        dists_to_start = np.linalg.norm(midpoints - start_arr, axis=1)
+        current_idx = np.argmin(dists_to_start)
 
-        # Fin des itérations, recherche du meilleur chemin vers le but
-        last_index = self.search_best_goal_node()
-        if last_index is not None:
-            return self.generate_course(last_index)
-        return None
+        sorted_indices = [current_idx]
+        visited = set([current_idx])
+        n_points = len(midpoints)
 
-    def choose_parent(self, new_node, near_inds):
-        if not near_inds:
-            return None
-        costs = []
-        for i in near_inds:
-            near_node = self.node_list[i]
-            t_node = self.steer(near_node, new_node)
-            if t_node and self.check_collision(t_node, self.obstacle_list):
-                costs.append(near_node.cost + self.calc_dist(near_node, new_node))
-            else:
-                costs.append(float("inf"))
-        min_cost = min(costs)
-        if min_cost == float("inf"): return None
-        min_ind = near_inds[costs.index(min_cost)]
-        new_node = self.steer(self.node_list[min_ind], new_node)
-        new_node.parent = self.node_list[min_ind]
-        new_node.cost = min_cost
-        return new_node
+        while len(sorted_indices) < n_points:
+            current_pos = midpoints[current_idx]
 
-    def search_best_goal_node(self):
-        dist_to_goal_list = [self.calc_dist_to_goal(n.x, n.y) for n in self.node_list]
-        # On cherche les nœuds proches de la fin
-        goal_inds = [i for i, d in enumerate(dist_to_goal_list) if d <= self.expand_dis * 2]
+            # Distances to all points
+            dists = np.linalg.norm(midpoints - current_pos, axis=1)
 
-        safe_goal_inds = []
-        for i in goal_inds:
-            t_node = self.steer(self.node_list[i], self.end)
-            if self.check_collision(t_node, self.obstacle_list):
-                safe_goal_inds.append(i)
+            # Mask visited points with infinity so they aren't picked
+            dists[list(visited)] = np.inf
 
-        if not safe_goal_inds: return None
-        min_cost = min([self.node_list[i].cost for i in safe_goal_inds])
-        for i in safe_goal_inds:
-            if self.node_list[i].cost == min_cost: return i
-        return None
+            next_idx = np.argmin(dists)
+            min_dist = dists[next_idx]
 
-    def steer(self, from_node, to_node, extend_length=float("inf")):
-        new_node = self.Node(from_node.x, from_node.y)
-        d, theta = self.calc_distance_and_angle(from_node, to_node)
-        new_node.path_x = [new_node.x]
-        new_node.path_y = [new_node.y]
-        if extend_length > d: extend_length = d
-        n_expand = math.floor(extend_length / self.path_resolution)
-        for _ in range(n_expand):
-            new_node.x += self.path_resolution * math.cos(theta)
-            new_node.y += self.path_resolution * math.sin(theta)
-            new_node.path_x.append(new_node.x)
-            new_node.path_y.append(new_node.y)
-        d, _ = self.calc_distance_and_angle(new_node, to_node)
-        if d <= self.path_resolution:
-            new_node.path_x.append(to_node.x)
-            new_node.path_y.append(to_node.y)
-            new_node.x = to_node.x
-            new_node.y = to_node.y
-        new_node.parent = from_node
-        return new_node
+            # If the nearest unvisited point is too far (e.g., > 20m),
+            # it might be a jump across the track. For now, we continue.
+            if min_dist == np.inf:
+                break
 
-    def generate_course(self, goal_ind):
-        path = [[self.end.x, self.end.y]]
-        node = self.node_list[goal_ind]
-        while node.parent is not None:
-            path.append([node.x, node.y])
-            node = node.parent
-        path.append([node.x, node.y])
-        return path
+            sorted_indices.append(next_idx)
+            visited.add(next_idx)
+            current_idx = next_idx
 
-    def calc_dist_to_goal(self, x, y):
-        return math.hypot(x - self.end.x, y - self.end.y)
+        # Reconstruct ordered path
+        ordered_path = [tuple(midpoints[i]) for i in sorted_indices]
 
-    def get_random_node(self):
-        if random.randint(0, 100) > self.goal_sample_rate:
-            rnd = self.Node(random.uniform(self.min_rand, self.max_rand),
-                            random.uniform(self.min_rand, self.max_rand))
-        else:
-            rnd = self.Node(self.end.x, self.end.y)
-        return rnd
+        # Close the loop
+        if ordered_path:
+            ordered_path.append(ordered_path[0])
 
-    def get_nearest_node_index(self, node_list, rnd_node):
-        dlist = [(node.x - rnd_node.x) ** 2 + (node.y - rnd_node.y) ** 2 for node in node_list]
-        return dlist.index(min(dlist))
+        return ordered_path
 
-    def check_collision(self, node, obstacle_list):
-        if node is None: return False
-        for (ox, oy, size) in obstacle_list:
-            dx_list = [ox - x for x in node.path_x]
-            dy_list = [oy - y for y in node.path_y]
-            d_list = [dx * dx + dy * dy for (dx, dy) in zip(dx_list, dy_list)]
-            if min(d_list) <= size ** 2:
-                return False
-        return True
+    def smooth_path(self, path):
+        """
+        Smooths the path using a Cubic B-Spline.
+        """
+        if len(path) < 3:
+            return path
 
-    def find_near_nodes(self, new_node):
-        nnode = len(self.node_list) + 1
-        r = 50.0 * math.sqrt((math.log(nnode) / nnode))
-        r = min(r, self.expand_dis * 5.0)
-        dist_list = [(node.x - new_node.x) ** 2 + (node.y - new_node.y) ** 2 for node in self.node_list]
-        near_inds = [i for i, d in enumerate(dist_list) if d <= r ** 2]
-        return near_inds
+        path_arr = np.array(path)
 
-    def rewire(self, new_node, near_inds):
-        for i in near_inds:
-            near_node = self.node_list[i]
-            edge_node = self.steer(new_node, near_node)
-            if not edge_node: continue
-            edge_node.cost = new_node.cost + self.calc_dist(new_node, near_node)
-            if near_node.cost > edge_node.cost:
-                if self.check_collision(edge_node, self.obstacle_list):
-                    near_node.parent = new_node
-                    near_node.cost = edge_node.cost
-                    near_node.path_x = edge_node.path_x
-                    near_node.path_y = edge_node.path_y
+        # Filter duplicates or points that are too close (< 1cm)
+        diffs = np.diff(path_arr, axis=0)
+        dists = np.sqrt((diffs ** 2).sum(axis=1))
+        mask = np.concatenate(([True], dists > 0.01))
+        clean_path = path_arr[mask]
 
-    def calc_dist(self, n1, n2):
-        return math.hypot(n1.x - n2.x, n1.y - n2.y)
+        if len(clean_path) < 4:
+            return clean_path.tolist()
 
-    def calc_distance_and_angle(self, from_node, to_node):
-        dx = to_node.x - from_node.x
-        dy = to_node.y - from_node.y
-        return math.hypot(dx, dy), math.atan2(dy, dx)
+        try:
+            x = clean_path[:, 0]
+            y = clean_path[:, 1]
+
+            # Spline parameters: s=0.5 (match your working script), k=3, per=True (closed loop)
+            tck, u = splprep([x, y], s=0.5, k=3, per=True)
+
+            # Generate high density points for smooth animation
+            u_new = np.linspace(0, 1, num=len(clean_path) * 10)
+            x_new, y_new = splev(u_new, tck)
+
+            return list(zip(x_new, y_new))
+        except Exception as e:
+            print(f"Spline smoothing failed ({e}). Using raw path.")
+            return clean_path.tolist()
+
+
+# Compatibility wrapper
+def compute_centerline(yellow, blue, start):
+    p = PathProcessor()
+    return p.compute_track_centerline(yellow, blue, start)
 
 
 def smooth_path(path):
-    """ Lissage B-Spline """
-    x = [p[0] for p in path][::-1]  # Inverser pour Start -> Goal
-    y = [p[1] for p in path][::-1]
-
-    if len(x) < 3: return list(zip(x, y))
-
-    try:
-        tck, u = interpolate.splprep([x, y], s=1.0, k=3)
-        u_new = np.linspace(0, 1, num=300)  # Plus de points pour l'animation fluide
-        smooth_x, smooth_y = interpolate.splev(u_new, tck)
-        return list(zip(smooth_x, smooth_y))
-    except:
-        return list(zip(x, y))
+    p = PathProcessor()
+    return p.smooth_path(path)
