@@ -1,9 +1,9 @@
 from pathlib import Path
-from utils.track_utils import load_track, get_start_pos
+from utils.track_utils import load_track, get_start_pos, compute_world_bounds
 from ui.process_pygame import process_pygame
 from core.process_path import PathProcessor
 
-TRACKS = ["small_track.csv", "hairpins_increasing_difficulty.csv", "peanut.csv"]
+TRACKS = ["Montreal_cones.csv", "hairpins_increasing_difficulty.csv", "peanut.csv"]
 
 if __name__ == "__main__":
     # Setup paths
@@ -37,6 +37,7 @@ if __name__ == "__main__":
             # 2. Compute Path (Centerline + Smoothing)
             print("Computing centerline...")
             processor = PathProcessor()
+            world_bounds = compute_world_bounds(cones)
 
             raw_path = processor.compute_track_centerline(yellow_cones, blue_cones, start_pos)
 
@@ -51,7 +52,7 @@ if __name__ == "__main__":
 
                 # 3. Launch Visualization
                 # We pass the path to process_pygame which handles the car simulation
-                process_pygame(selected_track, path=final_path)
+                process_pygame(selected_track, cones, world_bounds, path=final_path)
 
         else:
             print("Invalid choice.")
