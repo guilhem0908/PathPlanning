@@ -1,9 +1,13 @@
 from pathlib import Path
 from utils.track_utils import load_track, get_start_pos, compute_world_bounds
 from ui.process_pygame import process_pygame
-from core.process_path import PathProcessor
+#from core.process_path import PathProcessor
+from core.process_path_rrt import PathProcessor
 
-TRACKS = ["Montreal_cones.csv", "hairpins_increasing_difficulty.csv", "peanut.csv"]
+# from core.process_path import PathProcessor si on souhaite middle points,
+# from core.process_path_rrt import PathProcessor si on souhaite RRT
+
+TRACKS = ["small_track.csv", "hairpins_increasing_difficulty.csv", "peanut.csv"]
 
 if __name__ == "__main__":
     # Setup paths
@@ -61,3 +65,4 @@ if __name__ == "__main__":
         print("Please enter a valid number.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+
