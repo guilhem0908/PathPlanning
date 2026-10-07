@@ -1,3 +1,6 @@
+> Note d'origine de TJeanm, conservée telle quelle. Depuis octobre 2026, l'algorithme et le circuit se choisissent par arguments
+> (`--planner`, `--track`) au lieu de commenter des imports : voir [README.md](README.md).
+
 Dans le fichier main.py : commentez et décommentez selon l'algorithme que vous souhaitez
 
 Middlepoints : 
