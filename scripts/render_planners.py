@@ -9,7 +9,7 @@ to a cone centre, rendered off-screen with the viewer's drawing code.
 
 Usage (from the repository root):
     python scripts/render_planners.py
-    python scripts/render_planners.py --tracks small_track peanut spa
+    python scripts/render_planners.py --tracks small_track peanut spa --out build/spa.png
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def row_height(cones, panel_width: int) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--tracks", nargs="+", default=["small_track", "peanut", "spa"])
+    parser.add_argument("--tracks", nargs="+", default=["small_track", "peanut", "zandvoort"])
     parser.add_argument("--panel-width", type=int, default=430)
     parser.add_argument("--out", type=Path, default=ROOT / "docs" / "planners.png")
     return parser.parse_args()
