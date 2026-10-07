@@ -31,7 +31,7 @@ class PlannerInfo:
         key: Name used on the command line.
         module: Module of ``core/`` that implements it.
         summary: What it does.
-        author: Who wrote the module.
+        author: Who wrote the module, by role (the names are in the commit history).
         uses_rrt: Whether it runs RRT* between waypoints.
     """
 
@@ -48,7 +48,7 @@ PLANNERS: Dict[str, PlannerInfo] = {
         module="core.process_path",
         summary="midpoints of nearest blue/yellow cones, ordered greedily, "
         "smoothed by a periodic cubic B-spline",
-        author="Alec Bossard",
+        author="a teammate",
         uses_rrt=False,
     ),
     "rrt": PlannerInfo(
@@ -56,7 +56,7 @@ PLANNERS: Dict[str, PlannerInfo] = {
         module="core.process_path_rrt",
         summary="RRT* between consecutive midpoints with the cones as obstacles, "
         "then neighbour averaging and a periodic cubic B-spline",
-        author="TJeanm",
+        author="another teammate",
         uses_rrt=True,
     ),
     "rrt-lsq": PlannerInfo(
@@ -64,7 +64,7 @@ PLANNERS: Dict[str, PlannerInfo] = {
         module="core.process_path_rrt_qp",
         summary="same RRT* front end, then regularised least-squares smoothing "
         "(called 'QP' in the module) and a periodic cubic spline",
-        author="TJeanm",
+        author="another teammate",
         uses_rrt=True,
     ),
 }

@@ -8,9 +8,9 @@ viewer, not a vehicle model. Recorded off-screen by `scripts/record_gif.py`.*
 
 Given the full cone map of a track, three planners build a closed reference line around it, and a
 Pygame viewer moves a car along that line. The code was written in November and December 2025 by
-Guilhem Carmouze and two teammates, Alec Bossard and TJeanm, as a sandbox for the driverless
-prototype of TLSe Racing (Formula Student, 2025-2026 season). It is a team repository hosted on a
-personal account, not the team's official software.
+Guilhem Carmouze and two teammates as a sandbox for the driverless prototype of TLSe Racing
+(Formula Student, 2025-2026 season). It is a team repository hosted on a personal account, not the
+team's official software.
 
 The planning is offline and global: the planners see every cone, so there is no perception here.
 In October 2026 Guilhem Carmouze added what the sandbox lacked: a command line to choose the
@@ -21,11 +21,11 @@ are committed, tests and CI. The planners themselves were not changed.
 
 | Part | Files | Written | State |
 |---|---|---|---|
-| Midpoint centre line, periodic cubic B-spline | `src/core/process_path.py` | Nov 2025, A. Bossard | Works on all 26 tracks, 0.2 s at most |
-| RRT* between waypoints, neighbour averaging, B-spline (`rrt`) | `src/core/process_path_rrt.py` | Nov 2025, TJeanm | Runs on all tracks, but finds paths only where the gates are wider than 2.4 m (3 of the 26 tracks); elsewhere every search ends in a straight segment (see Results) |
-| Same RRT* front end, regularised least-squares smoothing (`rrt-lsq`; "QP" in the module) | `src/core/process_path_rrt_qp.py` | Nov 2025, TJeanm | Same behaviour. It was not reachable from the menu before October 2026 |
+| Midpoint centre line, periodic cubic B-spline | `src/core/process_path.py` | Nov 2025, a teammate | Works on all 26 tracks, 0.2 s at most |
+| RRT* between waypoints, neighbour averaging, B-spline (`rrt`) | `src/core/process_path_rrt.py` | Nov 2025, another teammate | Runs on all tracks, but finds paths only where the gates are wider than 2.4 m (3 of the 26 tracks); elsewhere every search ends in a straight segment (see Results) |
+| Same RRT* front end, regularised least-squares smoothing (`rrt-lsq`; "QP" in the module) | `src/core/process_path_rrt_qp.py` | Nov 2025, another teammate | Same behaviour. It was not reachable from the menu before October 2026 |
 | Pygame viewer, 2D camera (zoom about the cursor, pan, fullscreen) | `src/ui/` | Nov 2025, G. Carmouze | Works. The car steps one path sample per frame: an animation |
-| CSV loader, world bounds, menu, the 26 cone maps in `data/` | `src/utils/`, `src/main.py`, `data/` | Nov 2025, G. Carmouze (menu shared with A. Bossard and TJeanm) | Works; the origin of the maps is not documented |
+| CSV loader, world bounds, menu, the 26 cone maps in `data/` | `src/utils/`, `src/main.py`, `data/` | Nov 2025, G. Carmouze (menu shared with the two teammates) | Works; the origin of the maps is not documented |
 | Command line, planner registry, metrics, benchmark, figures, tests, CI | `src/planners.py`, `src/metrics.py`, `scripts/`, `tests/` | Oct 2026, G. Carmouze | Reproduce every number and picture of this page |
 | Perception, vehicle model, controller, speed profile, lap time, ROS | - | - | Not in this repository (a closed loop on a 2D simulator lives in [TLSe_Racing_Driverless](https://github.com/guilhem0908/TLSe_Racing_Driverless)) |
 
@@ -296,13 +296,14 @@ README.fr.md           the original French note, kept as written
 
 ## Authors and credits
 
-Who wrote what, by `git blame` at the last commit of 2025 (`8bf44a2`), in lines of Python:
+Who wrote what, by `git blame` at the last commit of 2025 (`8bf44a2`), in lines of Python. The
+names of the two teammates are in the commit history.
 
 | Author | Lines | Where |
 |---|---|---|
-| TJeanm | 634 | `src/core/process_path_rrt.py` (330), `src/core/process_path_rrt_qp.py` (297), 7 lines of `src/main.py`; also the original French note |
+| A teammate (RRT* planners) | 634 | `src/core/process_path_rrt.py` (330), `src/core/process_path_rrt_qp.py` (297), 7 lines of `src/main.py`; also the original French note |
 | Guilhem Carmouze | 355 | `src/ui/process_pygame.py` (196), `src/ui/camera.py` (55), `src/utils/track_utils.py` (68), 31 lines of `src/main.py`, 5 lines of `src/core/process_path.py` |
-| Alec Bossard | 146 | `src/core/process_path.py` (116), 30 lines of `src/main.py` |
+| A teammate (midpoint planner) | 146 | `src/core/process_path.py` (116), 30 lines of `src/main.py` |
 
 Everything added in October 2026 (`src/planners.py`, `src/metrics.py`, `src/ui/offscreen.py`, the
 rewritten `src/main.py`, the split of the viewer's drawing from its event loop, `scripts/`,
