@@ -1,68 +1,133 @@
-from pathlib import Path
-from utils.track_utils import load_track, get_start_pos, compute_world_bounds
-from ui.process_pygame import process_pygame
-#from core.process_path import PathProcessor
-from core.process_path_rrt import PathProcessor
+"""
+main.py
 
-# from core.process_path import PathProcessor si on souhaite middle points,
-# from core.process_path_rrt import PathProcessor si on souhaite RRT
+Plan a path around a cone track and show it.
 
-TRACKS = ["small_track.csv", "hairpins_increasing_difficulty.csv", "peanut.csv"]
+    python src/main.py                                   # menu of tracks, RRT* planner
+    python src/main.py --track peanut --planner midpoint
+    python src/main.py --track spa --planner rrt-lsq --seed 0 --no-window
+    python src/main.py --list
+"""
 
-if __name__ == "__main__":
-    # Setup paths
-    root = Path(__file__).resolve().parents[1]
-    data_dir = root / "data"
+import argparse
+import sys
 
+from metrics import min_clearance, path_length
+from planners import DEFAULT_PLANNER, PLANNERS, plan, planner_info, split_cones
+from utils.track_catalog import list_tracks, resolve_track
+from utils.track_utils import compute_world_bounds, get_start_pos, load_track
+
+
+def build_parser():
+    """Command-line arguments."""
+    parser = argparse.ArgumentParser(
+        prog="python src/main.py",
+        description="Plan a closed path around a cone track and animate a car along it.",
+    )
+    parser.add_argument(
+        "--track",
+        help="track name (see --list) or path to a CSV file; a menu is shown if omitted",
+    )
+    parser.add_argument(
+        "--planner",
+        default=DEFAULT_PLANNER,
+        help="one of: %s (default: %s)" % (", ".join(PLANNERS), DEFAULT_PLANNER),
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="seed of the random generator used by RRT* (default: not seeded)",
+    )
+    parser.add_argument(
+        "--no-window", action="store_true", help="plan and print the figures without the viewer"
+    )
+    parser.add_argument(
+        "--list", action="store_true", help="list the bundled tracks and the planners, then exit"
+    )
+    return parser
+
+
+def print_catalog():
+    """Print the bundled tracks and the planners."""
+    print("Tracks:")
+    for number, name in enumerate(list_tracks(), start=1):
+        print(f"  {number:2d} - {name}")
+    print("Planners:")
+    for info in PLANNERS.values():
+        print(f"  {info.key:9s} {info.summary} ({info.author})")
+
+
+def choose_track():
+    """Ask for a track number on the console. Returns None on invalid input."""
+    tracks = list_tracks()
     print("Choose a track:")
-    print("1 - small_track")
-    print("2 - hairpins_increasing_difficulty")
-    print("3 - peanut")
+    for number, name in enumerate(tracks, start=1):
+        print(f"{number} - {name}")
+    try:
+        choice = int(input(f"Your choice (1-{len(tracks)}): ").strip())
+    except (ValueError, EOFError):
+        print("Please enter a valid number.")
+        return None
+    if not 1 <= choice <= len(tracks):
+        print("Invalid choice.")
+        return None
+    return tracks[choice - 1]
+
+
+def main(argv=None):
+    """Entry point. Returns the process exit code."""
+    args = build_parser().parse_args(argv)
+    if args.list:
+        print_catalog()
+        return 0
 
     try:
-        choice_str = input("Your choice (1/2/3): ").strip()
-        track_choice = int(choice_str)
+        info = planner_info(args.planner)
+    except KeyError as error:
+        print(error.args[0])
+        return 2
 
-        if 1 <= track_choice <= 3:
-            selected_track = data_dir / TRACKS[track_choice - 1]
+    track_name = args.track or choose_track()
+    if track_name is None:
+        return 2
+    try:
+        track_file = resolve_track(track_name)
+    except FileNotFoundError as error:
+        print(error)
+        return 2
 
-            # 1. Load Data
-            print(f"Loading {selected_track}...")
-            cones = load_track(selected_track)
-            start_pos = get_start_pos(cones)
+    print(f"Loading {track_file.name}...")
+    cones = load_track(track_file)
+    start_pos = get_start_pos(cones)
 
-            if not start_pos:
-                start_pos = (0, 0)
+    print(f"Planning with '{info.key}': {info.summary}.")
+    result = plan(info.key, cones, start_pos, seed=args.seed)
+    if not result.path:
+        print("Error: could not compute a valid path.")
+        return 1
 
-            # Separate cones by color for the algorithm
-            yellow_cones = [(c['x'], c['y']) for c in cones if c['tag'] == 'yellow']
-            blue_cones = [(c['x'], c['y']) for c in cones if c['tag'] == 'blue']
+    yellow, blue = split_cones(cones)
+    summary = (
+        f"{info.key}: {len(result.path)} points, {path_length(result.path):.1f} m, "
+        f"{result.planning_time_s * 1000:.0f} ms, "
+        f"closest cone at {min_clearance(result.path, yellow + blue):.2f} m"
+    )
+    if result.rrt_segments:
+        summary += f", RRT* solved {result.rrt_solved}/{result.rrt_segments} segments"
+    print(summary)
 
-            # 2. Compute Path (Centerline + Smoothing)
-            print("Computing centerline...")
-            processor = PathProcessor()
-            world_bounds = compute_world_bounds(cones)
+    if args.no_window:
+        return 0
 
-            raw_path = processor.compute_track_centerline(yellow_cones, blue_cones, start_pos)
+    # Imported here so that planning without a window does not need a display.
+    from ui.process_pygame import process_pygame
 
-            if not raw_path:
-                print("Error: Could not compute a valid path.")
-            else:
-                print(f"Raw path found: {len(raw_path)} points.")
+    process_pygame(
+        track_file, cones, compute_world_bounds(cones), path=result.path, info=summary
+    )
+    return 0
 
-                print("Smoothing path...")
-                final_path = processor.smooth_path(raw_path)
-                print(f"Final smooth path: {len(final_path)} points.")
 
-                # 3. Launch Visualization
-                # We pass the path to process_pygame which handles the car simulation
-                process_pygame(selected_track, cones, world_bounds, path=final_path)
-
-        else:
-            print("Invalid choice.")
-
-    except ValueError:
-        print("Please enter a valid number.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-
+if __name__ == "__main__":
+    sys.exit(main())

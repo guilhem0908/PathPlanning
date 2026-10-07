@@ -1,5 +1,4 @@
 import csv
-import math
 
 
 def load_track(csv_path):
@@ -16,8 +15,8 @@ def load_track(csv_path):
                     "x": x,
                     "y": y,
                 })
-    except FileNotFoundError:
-        raise FileNotFoundError(f"File not found {csv_path!r}")
+    except FileNotFoundError as error:
+        raise FileNotFoundError(f"File not found {csv_path!r}") from error
     return cones
 
 
