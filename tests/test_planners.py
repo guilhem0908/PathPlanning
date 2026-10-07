@@ -11,7 +11,7 @@ from planners import ALIASES, PLANNERS, plan, planner_info, split_cones
 from utils.track_catalog import resolve_track
 from utils.track_utils import get_start_pos, load_track
 
-from tests.conftest import RING_CENTRE_RADIUS_M
+from tests.conftest import RING_CENTRE_RADIUS_M, make_ring
 
 
 @pytest.fixture(scope="module")
@@ -112,3 +112,23 @@ def test_planning_is_quiet_by_default(small_track, capsys):
     cones, start = small_track
     plan("rrt", cones, start, seed=0)
     assert capsys.readouterr().out == ""
+
+
+# core/process_path_rrt.py treats every cone as a disc of this radius.
+RRT_CONE_RADIUS_M = 1.2
+
+
+def test_rrt_solves_every_segment_when_gates_are_wider_than_two_cone_discs():
+    gate_width = 2.0 * RRT_CONE_RADIUS_M + 0.2
+    cones = make_ring(half_width_m=gate_width / 2.0)
+    result = plan("rrt", cones, get_start_pos(cones), seed=0)
+    assert result.rrt_solved == result.rrt_segments > 0
+
+
+def test_rrt_solves_no_segment_when_gates_are_narrower_than_two_cone_discs():
+    # The middle of a gate then lies inside the discs of its own two cones, so the
+    # goal of every segment is in collision and the search cannot end.
+    gate_width = 2.0 * RRT_CONE_RADIUS_M - 0.2
+    cones = make_ring(half_width_m=gate_width / 2.0)
+    result = plan("rrt", cones, get_start_pos(cones), seed=0)
+    assert result.rrt_solved == 0 and result.rrt_segments > 0
